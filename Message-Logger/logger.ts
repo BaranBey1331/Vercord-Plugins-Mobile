@@ -1,6 +1,5 @@
 import { before } from "@vendetta/patcher";
 import { findByStoreName, findByProps } from "@vendetta/metro";
-import { logger } from "@vendetta";
 
 const MessageStore = findByStoreName("MessageStore");
 const Dispatcher = findByProps("dispatch", "subscribe");
@@ -9,22 +8,20 @@ let unpatch: Function;
 
 export default {
     onLoad: () => {
-        logger.info("Vercord Eklentisi: Message Logger baslatildi!");
-
+        // Dispatcher üzerinden tüm olayları dinliyoruz
         unpatch = before("dispatch", Dispatcher, (args) => {
             const [event] = args;
 
-            // Mesaj silinme olayını (kendin veya başkası fark etmez) havada yakala
+            // Kendi mesajın veya başkasının mesajı silindiğinde tetiklenir
             if (event.type === "MESSAGE_DELETE") {
-                const { channelId, id } = event;
-                const message = MessageStore?.getMessage(channelId, id);
+                const message = MessageStore?.getMessage(event.channelId, event.id);
                 
                 if (message) {
-                    // 1. Mesajın içeriğini değiştir
+                    // 1. Mesajın sonuna belirgin bir etiket ekle
                     message.content += " `[🛑 Silindi]`";
                     
-                    // 2. SİHİRLİ DOKUNUŞ: Olayı "Silinme"den "Güncellenme"ye çevir!
-                    // Bu, React'ı mesajı yeni haliyle ekrana çizmeye (Re-render) zorlar.
+                    // 2. KESİN ÇÖZÜM: Olayı "Silinme"den "Güncelleme"ye çevir!
+                    // Böylece Discord arayüzü silmek yerine güncelleyerek ekrana geri çizer.
                     args[0] = {
                         type: "MESSAGE_UPDATE",
                         message: message
@@ -36,6 +33,5 @@ export default {
     
     onUnload: () => {
         if (unpatch) unpatch();
-        logger.info("Vercord Eklentisi: Message Logger durduruldu.");
     }
 }
