@@ -14,19 +14,21 @@ export default {
         unpatch = before("dispatch", Dispatcher, (args) => {
             const [event] = args;
 
+            // Mesaj silinme olayını (kendin veya başkası fark etmez) havada yakala
             if (event.type === "MESSAGE_DELETE") {
                 const { channelId, id } = event;
                 const message = MessageStore?.getMessage(channelId, id);
                 
                 if (message) {
-                    // Mesajın içeriğini değiştir (Code block stili ile belirginleştir)
+                    // 1. Mesajın içeriğini değiştir
                     message.content += " `[🛑 Silindi]`";
                     
-                    // Discord'un içsel state mekanizmasını kullanarak mesajı gri/uyarı rengine sokuyoruz
-                    message.state = "SEND_FAILED"; 
-                    
-                    // Orijinal silme işlemini iptal et
-                    args[0] = { type: "VERCORD_DUMMY_EVENT" }; 
+                    // 2. SİHİRLİ DOKUNUŞ: Olayı "Silinme"den "Güncellenme"ye çevir!
+                    // Bu, React'ı mesajı yeni haliyle ekrana çizmeye (Re-render) zorlar.
+                    args[0] = {
+                        type: "MESSAGE_UPDATE",
+                        message: message
+                    };
                 }
             }
         });
@@ -37,4 +39,3 @@ export default {
         logger.info("Vercord Eklentisi: Message Logger durduruldu.");
     }
 }
-
