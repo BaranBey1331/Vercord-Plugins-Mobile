@@ -1,18 +1,19 @@
-name: Vercord Eklentilerini Derle ve Yayinla
+name: Vercord Otomatik Eklenti Derleyici
 
-# Bu sistem sen main dalına her kod pushladığında otomatik çalışır
+# Herhangi bir TS dosyası değiştiğinde veya main dalına kod eklendiğinde çalışır
 on:
   push:
     branches:
       - main
     paths:
-      - '**/*.ts' # Herhangi bir TS dosyası değiştiğinde tetiklenir
+      - '**/*.ts'
+  workflow_dispatch: # İstersen Github üzerinden manuel de tetikleyebilirsin
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     
-    # GitHub Token'a Release oluşturabilmesi için yazma izni veriyoruz
+    # Release oluşturmak için gereken Github izinleri
     permissions:
       contents: write
 
@@ -25,22 +26,57 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Esbuild Derleyicisini Kur
+      - name: Esbuild Kurulumu
         run: npm install -g esbuild
 
-      - name: Message Logger Eklentisini Derle
+      - name: Tüm Eklentileri Tara ve Derle (Auto-Discovery)
         run: |
-          echo "Logger eklentisi derleniyor..."
-          # TS kodunu alır, @vendetta kütüphanelerini dışlar ve tek parça JS'e çevirir
-          esbuild Message-Logger/logger.ts --bundle --minify --format=iife --global-name=vercordPlugin --external:@vendetta/* --outfile=logger.js
+          echo ">>> VERCORD MULTI-PLUGIN DERLEYICI BASLATILDI <<<"
+          
+          # Derlenen dosyaların toplanacağı klasörü oluştur
+          mkdir -p release_builds
+          
+          # Repodaki tüm klasörleri dön
+          for plugin_dir in */; do
+            # Sondaki slash (/) işaretini temizle (Örn: "Message-Logger/" -> "Message-Logger")
+            plugin_name=${plugin_dir%/}
+            
+            # .github veya gizli klasörleri atla
+            if [[ "$plugin_name" == .* ]]; then continue; fi
+            if [[ "$plugin_name" == "release_builds" ]]; then continue; fi
+            
+            # Klasör içindeki ilk .ts dosyasını bul (index.ts, logger.ts fark etmez)
+            entry_file=$(ls "$plugin_name"/*.ts 2>/dev/null | head -n 1)
+            
+            # Eğer klasörde .ts dosyası varsa derlemeyi başlat
+            if [ -n "$entry_file" ]; then
+              echo "✅ Bulundu: $plugin_name ($entry_file)"
+              
+              # JavaScript değişken adlarında tire (-) kullanılamaz, tireleri alt çizgiye (_) çeviriyoruz
+              global_name=$(echo "$plugin_name" | tr '-' '_')
+              
+              # Esbuild ile derle, çıktı adını klasör adı yap (Örn: Message-Logger.js)
+              esbuild "$entry_file" \
+                --bundle \
+                --minify \
+                --format=iife \
+                --global-name="vercordPlugin_${global_name}" \
+                --external:@vendetta \
+                --external:@vendetta/* \
+                --outfile="release_builds/${plugin_name}.js"
+                
+              echo "🚀 Derlendi: release_builds/${plugin_name}.js"
+            else
+              echo "⏩ Atlandı: $plugin_name (TS dosyası bulunamadı)"
+            fi
+          done
 
-      - name: Otomatik Release (Sürüm) Oluştur
+      - name: Otomatik Release (Sürüm) Oluştur ve Yükle
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "latest" # Sürekli aynı sürüm etiketini günceller (Rolling Release)
-          name: "Vercord Plugins - Canlı Sürüm"
-          files: |
-            logger.js
+          tag_name: "latest"
+          name: "Vercord Plugins - Canlı Sürüm (Auto-Update)"
+          # release_builds klasöründeki TÜM .js dosyalarını Release'e yükle
+          files: release_builds/*.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
