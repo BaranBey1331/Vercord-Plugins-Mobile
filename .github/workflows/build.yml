@@ -1,0 +1,46 @@
+name: Vercord Eklentilerini Derle ve Yayinla
+
+# Bu sistem sen main dalına her kod pushladığında otomatik çalışır
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.ts' # Herhangi bir TS dosyası değiştiğinde tetiklenir
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    # GitHub Token'a Release oluşturabilmesi için yazma izni veriyoruz
+    permissions:
+      contents: write
+
+    steps:
+      - name: Repoyu Klonla
+        uses: actions/checkout@v4
+
+      - name: Node.js Kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Esbuild Derleyicisini Kur
+        run: npm install -g esbuild
+
+      - name: Message Logger Eklentisini Derle
+        run: |
+          echo "Logger eklentisi derleniyor..."
+          # TS kodunu alır, @vendetta kütüphanelerini dışlar ve tek parça JS'e çevirir
+          esbuild Message-Logger/logger.ts --bundle --minify --format=iife --global-name=vercordPlugin --external:@vendetta/* --outfile=logger.js
+
+      - name: Otomatik Release (Sürüm) Oluştur
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "latest" # Sürekli aynı sürüm etiketini günceller (Rolling Release)
+          name: "Vercord Plugins - Canlı Sürüm"
+          files: |
+            logger.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
