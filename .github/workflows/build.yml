@@ -59,8 +59,7 @@ jobs:
               esbuild "$entry_file" \
                 --bundle \
                 --minify \
-                --format=iife \
-                --global-name="vercordPlugin_${global_name}" \
+                --format=cjs \
                 --external:@vendetta \
                 --external:@vendetta/* \
                 --outfile="release_builds/${plugin_name}.js"
